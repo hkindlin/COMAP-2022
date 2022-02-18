@@ -12,20 +12,40 @@ pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, T
 ```
 
 ```{r}
+assets <- read_csv("BCHAIN-MKPRU.csv") %>%
+    left_join(read_csv("LBMA-GOLD.csv")) %>%
+    clean_names() %>% 
+    mutate(date = mdy(date),
+           index = row_number()) %>%
+    rename(bitcoin = value,
+           gold = usd_pm) %>% 
+    as_tsibble()
+```
+
+
+```{r}
 bitcoin_ts <- ts(assets$bitcoin)
-gold_ts <- ts(assets$gold)
+
+gold_ts <- read_csv("LBMA-GOLD.csv") %>% 
+    select(-Date) %>% 
+    drop_na() %>% 
+    as.ts()
 ```
 
 ```{r}
-sma_btc <- SMA(bitcoin_ts)
-plot(sma_btc)
-
 ema_btc <- EMA(bitcoin_ts)
 plot(ema_btc)
+
+ema_gold <- EMA(gold_ts)
+plot(ema_gold)
 ```
 
 ```{r}
 chartSeries(bitcoin_ts,
+            theme = chartTheme('white'))
+addBBands(n=20, sd=2)
+
+chartSeries(gold_ts,
             theme = chartTheme('white'))
 addBBands(n=20, sd=2)
 ```
@@ -45,8 +65,6 @@ ggplot(rsi_btc_ema, aes(index, value)) +
 
 ```
 ```{r}
-gold_ts <- gold_ts %>% drop_na()
-
 rsi_gold_ema <- RSI(gold_ts, n = 14, maType = "EMA") %>% as_tsibble()
 
 assets <- assets %>% 
