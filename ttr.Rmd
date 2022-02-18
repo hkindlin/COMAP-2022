@@ -1,0 +1,64 @@
+---
+title: "TTR"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, TTR)
+```
+
+```{r}
+bitcoin_ts <- ts(assets$bitcoin)
+gold_ts <- ts(assets$gold)
+```
+
+```{r}
+sma_btc <- SMA(bitcoin_ts)
+plot(sma_btc)
+
+ema_btc <- EMA(bitcoin_ts)
+plot(ema_btc)
+```
+
+```{r}
+chartSeries(bitcoin_ts,
+            theme = chartTheme('white'))
+addBBands(n=20, sd=2)
+```
+```{r}
+rsi_btc_ema <- RSI(bitcoin_ts, n = 14, maType = "EMA") %>% as_tsibble()
+
+assets <- assets %>% 
+    mutate(rsi_btc = rsi_btc_ema$value)
+
+ggplot(rsi_btc_ema, aes(index, value)) + 
+    geom_line() + 
+    geom_hline(aes(yintercept = 30), color = "red") +
+    labs(title = "Relative Strength Index for Bitcoin",
+         subtitle = "EMA Over Past 14 Days") +
+    xlab("Days") + ylab("RSI") +
+    theme_minimal()
+
+```
+```{r}
+gold_ts <- gold_ts %>% drop_na()
+
+rsi_gold_ema <- RSI(gold_ts, n = 14, maType = "EMA") %>% as_tsibble()
+
+assets <- assets %>% 
+    mutate(rsi_gold = rsi_gold_ema$value)
+
+ggplot(rsi_gold_ema, aes(index, value)) + 
+    geom_line() + 
+    geom_hline(aes(yintercept = 30), color = "red") +
+    labs(title = "Relative Strength Index for Gold",
+         subtitle = "EMA Over Past 14 Days") +
+    xlab("Days") + ylab("RSI") +
+    theme_minimal()
+```
+
+
