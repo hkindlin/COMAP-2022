@@ -101,6 +101,15 @@ grid.arrange(box_rsi_btc, box_rsi_gold)
 ```
 
 ```{r}
+assets %>% ggplot(aes(x = date)) +
+    geom_line(aes(y = rsi_btc), color = "grey")+
+    geom_line(aes(y = mean_rsi_btc)) + 
+    geom_line(aes(y = mean_rsi_btc + sd_rsi_btc), color = "darkgreen") +
+    geom_line(aes(y = mean_rsi_btc - sd_rsi_btc), color = "red")
+    geom_line(aes(y = rsi_btc), color = "grey")
+```
+
+```{r}
 assets %>% 
     mutate(score_btc = (rsi_btc - mean_rsi_btc) / sd_rsi_btc,
            score_gold = (rsi_gold - mean_rsi_gold) / sd_rsi_gold)
