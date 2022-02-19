@@ -8,7 +8,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, forecast, rugarch, xts, PerformanceAnalytics, quantmod)
+pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, forecast, rugarch, xts, PerformanceAnalytics, quantmod, rmgarch, tsbox)
 ```
 
 ```{r}
@@ -19,7 +19,25 @@ assets <- read_csv("BCHAIN-MKPRU.csv") %>%
     rename(bitcoin = value,
            gold = usd_pm) %>% 
     as_tsibble()
+
+bitcoin <- read_csv("BCHAIN-MKPRU.csv") %>%
+    clean_names() %>% 
+    mutate(date = mdy(date))
+
+bitcoin <- bitcoin$value %>% 
+    xts(order.by = bitcoin$date)
+
+gold <- read_csv("LBMA-GOLD.csv") %>% 
+    clean_names() %>% 
+    mutate(date = mdy(date))
+
+gold <- gold$usd_pm %>% 
+    xts(gold$usd_pm)
+
+assetsX <- ts_xts(assets)
 ```
+
+ARIMA testing
 
 ```{r}
 assets %>% 
@@ -40,8 +58,37 @@ adf.test(assets$bitcoin)
 model_bit_1 <- arima(assets$bitcoin)
 ```
 
+Univariate Garch Testing
+
 ```{r}
-experiment <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1,0)),mean.model = list( armaOrder = c(1,1,)), distribution.model = 'std')
+ugspec <- ugarchspec(mean.model = list( armaOrder = c(1,0)),
+                         distribution.model = 'std')
+
+ugfit <- ugarchfit(spec = ugspec, data = bitcoin)
+
+ugfit@fit$coef
+
+ug_var <- ugfit@fit$var
+
+ug_res2 <- (ugfit@fit$residuals)^2
+```
+
+Forcasting
+
+```{r}
+ugpred <- ugarchforecast(ugfit, n.ahead = 10)
+```
+
+Mulitvariate Garch testing
+
+```{r}
+
+uspec.2 <- multispec(replicate(2, ugarchspec(mean.model = list(armaOrder = c(1,0)))))
+
+mgfit <- multifit(uspec.2, assetsX)
+
+spec1 <- dccspec(uspec = uspec.2, dccOrder = c(1,1), distribution = "mvstudent")
+
 ```
 
 
