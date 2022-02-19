@@ -32,7 +32,7 @@ gold <- read_csv("LBMA-GOLD.csv") %>%
     mutate(date = mdy(date))
 
 gold <- gold$usd_pm %>% 
-    xts(gold$usd_pm)
+    xts(gold$date)
 
 assetsX <- ts_xts(assets)
 ```

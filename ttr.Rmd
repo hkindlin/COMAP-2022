@@ -8,28 +8,32 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, TTR)
+pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, TTR, xts, tsbox, quantmod, gridExtra, reticulate)
 ```
 
-```{r}
+```{r, message=FALSE}
 assets <- read_csv("BCHAIN-MKPRU.csv") %>%
     left_join(read_csv("LBMA-GOLD.csv")) %>%
     clean_names() %>% 
-    mutate(date = mdy(date),
-           index = row_number()) %>%
+    mutate(date = mdy(date)) %>%
     rename(bitcoin = value,
            gold = usd_pm) %>% 
     as_tsibble()
-```
 
+gold <- read_csv("LBMA-GOLD.csv") %>% 
+    clean_names() %>% 
+    mutate(date = mdy(date)) %>% 
+    drop_na()
 
-```{r}
-bitcoin_ts <- ts(assets$bitcoin)
+gold_ts <- gold$usd_pm %>% 
+    xts(gold$date)
 
-gold_ts <- read_csv("LBMA-GOLD.csv") %>% 
-    select(-Date) %>% 
-    drop_na() %>% 
-    as.ts()
+bitcoin <- read_csv("BCHAIN-MKPRU.csv") %>%
+    clean_names() %>% 
+    mutate(date = mdy(date))
+
+bitcoin_ts <- bitcoin$value %>% 
+    xts(order.by = bitcoin$date)
 ```
 
 ```{r}
@@ -49,36 +53,64 @@ chartSeries(gold_ts,
             theme = chartTheme('white'))
 addBBands(n=20, sd=2)
 ```
+
 ```{r}
-rsi_btc_ema <- RSI(bitcoin_ts, n = 14, maType = "EMA") %>% as_tsibble()
+rsi_btc <- RSI(bitcoin_ts, n = 14, maType = "EMA")
 
-assets <- assets %>% 
-    mutate(rsi_btc = rsi_btc_ema$value)
+rsi_btc %>% autoplot()
 
-ggplot(rsi_btc_ema, aes(index, value)) + 
-    geom_line() + 
-    geom_hline(aes(yintercept = 30), color = "red") +
-    labs(title = "Relative Strength Index for Bitcoin",
-         subtitle = "EMA Over Past 14 Days") +
-    xlab("Days") + ylab("RSI") +
-    theme_minimal()
+rsi_btc <- ts_tsibble(rsi_btc) %>% 
+    rename(date = time,
+           rsi_btc = value) %>% 
+    fill_gaps()
 
+assets <- left_join(assets, rsi_btc)
+```
+
+```{r}
+rsi_gold <- RSI(gold_ts, n = 14, maType = "EMA")
+
+rsi_gold %>% autoplot()
+
+rsi_gold <- ts_tsibble(rsi_gold) %>% 
+    rename(date = time,
+           rsi_gold = value) %>% 
+    fill_gaps()
+
+assets <- left_join(assets, rsi_gold)
 ```
 ```{r}
-rsi_gold_ema <- RSI(gold_ts, n = 14, maType = "EMA") %>% as_tsibble()
-
 assets <- assets %>% 
-    mutate(rsi_gold = rsi_gold_ema$value)
-
-ggplot(rsi_gold_ema, aes(index, value)) + 
-    geom_line() + 
-    geom_hline(aes(yintercept = 30), color = "red") +
-    labs(title = "Relative Strength Index for Gold",
-         subtitle = "EMA Over Past 14 Days") +
-    xlab("Days") + ylab("RSI") +
-    theme_minimal()
+    select(date, bitcoin, rsi_btc, gold, rsi_gold) %>% 
+    mutate(date = ymd(date))
 ```
-1. Run RSI multiple times with different Ns and MAs and see which gets you the most amount of money by the end
-2. Don't move all of the money at once, use a function dependent on RSI value that moves a portion of the money at a time
 
+```{r}
+assets %>% summary()
+assets$rsi_btc %>% sd(na.rm = TRUE)
+assets$rsi_gold %>% sd(na.rm = TRUE)
+```
+
+```{r}
+plot_rsi_btc <- assets %>% ggplot(aes(x = date, y = rsi_btc)) +
+    geom_line() +
+    geom_hline(aes(yintercept = 55.272 - 18.94, color = "-1 SD")) +
+    geom_hline(aes(yintercept = 55.272, color = "Mean")) +
+    geom_hline(aes(yintercept = 55.272 + 18.84, color = "+1 SD"))
+plot_rsi_gold <- assets %>% ggplot(aes(x = date, y = rsi_gold)) +
+    geom_line() +
+    geom_hline(aes(yintercept = 51.81 - 17.18, color = "-1 SD")) +
+    geom_hline(aes(yintercept = 51.81, color = "Mean")) +
+    geom_hline(aes(yintercept = 51.81 + 17.18, color = "+1 SD"))
+grid.arrange(plot_rsi_btc, plot_rsi_gold)
+
+box_rsi_btc <- assets %>%  ggplot(aes()) + 
+    geom_boxplot(aes(rsi_btc))
+box_rsi_gold <- assets %>%  ggplot(aes()) + 
+    geom_boxplot(aes(rsi_gold))
+grid.arrange(box_rsi_btc, box_rsi_gold)
+```
+```{r}
+
+```
 
