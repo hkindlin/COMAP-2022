@@ -100,4 +100,11 @@ box_rsi_gold <- assets %>%  ggplot(aes()) +
 grid.arrange(box_rsi_btc, box_rsi_gold)
 ```
 
+```{r}
+assets %>% 
+    mutate(score_btc = (rsi_btc - mean_rsi_btc) / sd_rsi_btc,
+           score_gold = (rsi_gold - mean_rsi_gold) / sd_rsi_gold)
+
+
+```
 
