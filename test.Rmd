@@ -1,0 +1,134 @@
+---
+title: "Working file"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load(
+    tidyverse,
+    tsibble,
+    fable,
+    feasts,
+    janitor,
+    lubridate,
+    tseries,
+    forecast,
+    rugarch,
+    xts,
+    PerformanceAnalytics,
+    quantmod,
+    rmgarch,
+    tsbox
+)
+```
+
+```{r}
+assets <- read_csv("BCHAIN-MKPRU.csv") %>%
+    left_join(read_csv("LBMA-GOLD.csv")) %>%
+    clean_names() %>%
+    mutate(date = mdy(date)) %>%
+    rename(bitcoin = value,
+           gold = usd_pm) %>%
+    as_tsibble()
+
+bitcoin <- read_csv("BCHAIN-MKPRU.csv") %>%
+    clean_names() %>%
+    mutate(date = mdy(date))
+
+bitcoin <- bitcoin$value %>%
+    xts(order.by = bitcoin$date)
+
+gold <- read_csv("LBMA-GOLD.csv") %>%
+    clean_names() %>%
+    mutate(date = mdy(date)) %>% 
+    drop_na()
+
+gold <- gold$usd_pm %>%
+    xts(gold$date)
+
+
+assetsX <- ts_xts(assets)
+```
+
+ARIMA testing
+
+```{r}
+assets %>% 
+    ggplot(aes(x = date)) + geom_line(aes(y = bitcoin)) + theme_bw()
+
+assets %>% 
+    !is.na() %>% 
+    ggplot(aes(x = date)) + geom_line(aes(y = gold)) + theme_bw()
+
+assets %>% 
+    gg_tsdisplay(y = bitcoin, plot_type = "partial")
+
+assets %>% 
+    gg_tsdisplay(y = gold, plot_type = "partial")
+
+adf.test(assets$bitcoin)
+
+model_bit_1 <- arima(assets$bitcoin)
+```
+
+Univariate Garch Testing
+
+```{r}
+ugspec <- ugarchspec(mean.model = list(armaOrder = c(1, 0)),
+                     distribution.model = 'std')
+
+ugbit <- ugarchfit(spec = ugspec, data = bitcoin %>% head(100))
+
+ugbit@fit$coef
+
+ugbit_var <- ugbit@fit$var
+
+ugbit_res2 <- (ugbit@fit$residuals) ^ 2
+
+
+uggit <- ugarchfit(spec = ugspec, data = gold)
+
+uggit@fit$coef
+
+uggit_var <- uggit@fit$var
+
+uggit_res2  <- (uggit@fit$residuals) ^ 2
+```
+
+Forcasting
+
+```{r}
+ugbitpred <- ugarchforecast(ugbit, n.ahead = 10)
+
+uggitpred <- ugarchforecast(uggit, n.ahead = 10)
+```
+
+Don't start trading until day 15 for bitcoin
+
+Don't start trading until day 23 for gold
+
+
+```{r}
+
+test <- function(data){
+    ugspec <- ugarchspec(mean.model = list(armaOrder = c(1, 0)),
+                     distribution.model = 'std')
+    
+    ugfit <- ugarchfit(spec = ugspec, data = data)
+
+
+    ugpred <- ugarchforecast(ugfit, n.ahead = 10)
+
+    return(ugpred)
+}
+
+```
+
+```{r}
+yes <- test(bitcoin %>% head(494))
+```
+
