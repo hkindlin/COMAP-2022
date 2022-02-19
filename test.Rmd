@@ -8,31 +8,48 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, forecast, rugarch, xts, PerformanceAnalytics, quantmod, rmgarch, tsbox)
+pacman::p_load(
+    tidyverse,
+    tsibble,
+    fable,
+    feasts,
+    janitor,
+    lubridate,
+    tseries,
+    forecast,
+    rugarch,
+    xts,
+    PerformanceAnalytics,
+    quantmod,
+    rmgarch,
+    tsbox
+)
 ```
 
 ```{r}
 assets <- read_csv("BCHAIN-MKPRU.csv") %>%
     left_join(read_csv("LBMA-GOLD.csv")) %>%
-    clean_names() %>% 
+    clean_names() %>%
     mutate(date = mdy(date)) %>%
     rename(bitcoin = value,
-           gold = usd_pm) %>% 
+           gold = usd_pm) %>%
     as_tsibble()
 
 bitcoin <- read_csv("BCHAIN-MKPRU.csv") %>%
-    clean_names() %>% 
+    clean_names() %>%
     mutate(date = mdy(date))
 
-bitcoin <- bitcoin$value %>% 
+bitcoin <- bitcoin$value %>%
     xts(order.by = bitcoin$date)
 
-gold <- read_csv("LBMA-GOLD.csv") %>% 
-    clean_names() %>% 
-    mutate(date = mdy(date))
+gold <- read_csv("LBMA-GOLD.csv") %>%
+    clean_names() %>%
+    mutate(date = mdy(date)) %>% 
+    drop_na()
 
-gold <- gold$usd_pm %>% 
-    xts(gold$usd_pm)
+gold <- gold$usd_pm %>%
+    xts(gold$date)
+
 
 assetsX <- ts_xts(assets)
 ```
@@ -61,34 +78,57 @@ model_bit_1 <- arima(assets$bitcoin)
 Univariate Garch Testing
 
 ```{r}
-ugspec <- ugarchspec(mean.model = list( armaOrder = c(1,0)),
-                         distribution.model = 'std')
+ugspec <- ugarchspec(mean.model = list(armaOrder = c(1, 0)),
+                     distribution.model = 'std')
 
-ugfit <- ugarchfit(spec = ugspec, data = bitcoin)
+ugbit <- ugarchfit(spec = ugspec, data = bitcoin %>% head(100))
 
-ugfit@fit$coef
+ugbit@fit$coef
 
-ug_var <- ugfit@fit$var
+ugbit_var <- ugbit@fit$var
 
-ug_res2 <- (ugfit@fit$residuals)^2
+ugbit_res2 <- (ugbit@fit$residuals) ^ 2
+
+
+uggit <- ugarchfit(spec = ugspec, data = gold)
+
+uggit@fit$coef
+
+uggit_var <- uggit@fit$var
+
+uggit_res2  <- (uggit@fit$residuals) ^ 2
 ```
 
 Forcasting
 
 ```{r}
-ugpred <- ugarchforecast(ugfit, n.ahead = 10)
+ugbitpred <- ugarchforecast(ugbit, n.ahead = 10)
+
+uggitpred <- ugarchforecast(uggit, n.ahead = 10)
 ```
 
-Mulitvariate Garch testing
+Don't start trading until day 15 for bitcoin
+
+Don't start trading until day 23 for gold
+
 
 ```{r}
 
-uspec.2 <- multispec(replicate(2, ugarchspec(mean.model = list(armaOrder = c(1,0)))))
+test <- function(data){
+    ugspec <- ugarchspec(mean.model = list(armaOrder = c(1, 0)),
+                     distribution.model = 'std')
+    
+    ugfit <- ugarchfit(spec = ugspec, data = data)
 
-mgfit <- multifit(uspec.2, assetsX)
 
-spec1 <- dccspec(uspec = uspec.2, dccOrder = c(1,1), distribution = "mvstudent")
+    ugpred <- ugarchforecast(ugfit, n.ahead = 10)
+
+    return(ugpred)
+}
 
 ```
 
+```{r}
+yes <- test(bitcoin %>% head(494))
+```
 
