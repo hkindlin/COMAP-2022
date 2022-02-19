@@ -8,17 +8,16 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, TTR, xts, tsbox, quantmod, gridExtra, reticulate)
+pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, TTR, xts, tsbox, quantmod, gridExtra, reticulate, RcppRoll)
 ```
 
 ```{r, message=FALSE}
-assets <- read_csv("BCHAIN-MKPRU.csv") %>%
-    left_join(read_csv("LBMA-GOLD.csv")) %>%
-    clean_names() %>% 
-    mutate(date = mdy(date)) %>%
-    rename(bitcoin = value,
-           gold = usd_pm) %>% 
-    as_tsibble()
+assets <- read_csv("assets.csv") %>% 
+    select(date, bitcoin, rsi_btc, mean_rsi_btc, sd_rsi_btc, gold, rsi_gold, mean_rsi_gold, sd_rsi_gold) %>% 
+    mutate(date = mdy(date))
+```
+
+```{r}
 
 gold <- read_csv("LBMA-GOLD.csv") %>% 
     clean_names() %>% 
@@ -42,16 +41,6 @@ plot(ema_btc)
 
 ema_gold <- EMA(gold_ts)
 plot(ema_gold)
-```
-
-```{r}
-chartSeries(bitcoin_ts,
-            theme = chartTheme('white'))
-addBBands(n=20, sd=2)
-
-chartSeries(gold_ts,
-            theme = chartTheme('white'))
-addBBands(n=20, sd=2)
 ```
 
 ```{r}
@@ -110,7 +99,5 @@ box_rsi_gold <- assets %>%  ggplot(aes()) +
     geom_boxplot(aes(rsi_gold))
 grid.arrange(box_rsi_btc, box_rsi_gold)
 ```
-```{r}
 
-```
 
