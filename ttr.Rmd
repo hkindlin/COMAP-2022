@@ -78,5 +78,7 @@ ggplot(rsi_gold_ema, aes(index, value)) +
     xlab("Days") + ylab("RSI") +
     theme_minimal()
 ```
+1. Run RSI multiple times with different Ns and MAs and see which gets you the most amount of money by the end
+2. Don't move all of the money at once, use a function dependent on RSI value that moves a portion of the money at a time
 
 
