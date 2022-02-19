@@ -1,0 +1,119 @@
+---
+title: "TTR"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, TTR, xts, tsbox, quantmod, gridExtra, reticulate, RcppRoll)
+```
+
+```{r, message=FALSE}
+assets <- read_csv("assets.csv") %>% 
+    select(date, bitcoin, rsi_btc, mean_rsi_btc, sd_rsi_btc, gold, rsi_gold, mean_rsi_gold, sd_rsi_gold) %>% 
+    mutate(date = mdy(date))
+```
+
+```{r}
+
+gold <- read_csv("LBMA-GOLD.csv") %>% 
+    clean_names() %>% 
+    mutate(date = mdy(date)) %>% 
+    drop_na()
+
+gold_ts <- gold$usd_pm %>% 
+    xts(gold$date)
+
+bitcoin <- read_csv("BCHAIN-MKPRU.csv") %>%
+    clean_names() %>% 
+    mutate(date = mdy(date))
+
+bitcoin_ts <- bitcoin$value %>% 
+    xts(order.by = bitcoin$date)
+```
+
+```{r}
+ema_btc <- EMA(bitcoin_ts)
+plot(ema_btc)
+
+ema_gold <- EMA(gold_ts)
+plot(ema_gold)
+```
+
+```{r}
+rsi_btc <- RSI(bitcoin_ts, n = 14, maType = "EMA")
+
+rsi_btc %>% autoplot()
+
+rsi_btc <- ts_tsibble(rsi_btc) %>% 
+    rename(date = time,
+           rsi_btc = value) %>% 
+    fill_gaps()
+
+assets <- left_join(assets, rsi_btc)
+```
+
+```{r}
+rsi_gold <- RSI(gold_ts, n = 14, maType = "EMA")
+
+rsi_gold %>% autoplot()
+
+rsi_gold <- ts_tsibble(rsi_gold) %>% 
+    rename(date = time,
+           rsi_gold = value) %>% 
+    fill_gaps()
+
+assets <- left_join(assets, rsi_gold)
+```
+```{r}
+assets <- assets %>% 
+    select(date, bitcoin, rsi_btc, gold, rsi_gold) %>% 
+    mutate(date = ymd(date))
+```
+
+```{r}
+assets %>% summary()
+assets$rsi_btc %>% sd(na.rm = TRUE)
+assets$rsi_gold %>% sd(na.rm = TRUE)
+```
+
+```{r}
+plot_rsi_btc <- assets %>% ggplot(aes(x = date, y = rsi_btc)) +
+    geom_line() +
+    geom_hline(aes(yintercept = 55.272 - 18.94, color = "-1 SD")) +
+    geom_hline(aes(yintercept = 55.272, color = "Mean")) +
+    geom_hline(aes(yintercept = 55.272 + 18.84, color = "+1 SD"))
+plot_rsi_gold <- assets %>% ggplot(aes(x = date, y = rsi_gold)) +
+    geom_line() +
+    geom_hline(aes(yintercept = 51.81 - 17.18, color = "-1 SD")) +
+    geom_hline(aes(yintercept = 51.81, color = "Mean")) +
+    geom_hline(aes(yintercept = 51.81 + 17.18, color = "+1 SD"))
+grid.arrange(plot_rsi_btc, plot_rsi_gold)
+
+box_rsi_btc <- assets %>%  ggplot(aes()) + 
+    geom_boxplot(aes(rsi_btc))
+box_rsi_gold <- assets %>%  ggplot(aes()) + 
+    geom_boxplot(aes(rsi_gold))
+grid.arrange(box_rsi_btc, box_rsi_gold)
+```
+
+```{r}
+assets %>% ggplot(aes(x = date)) +
+    geom_line(aes(y = rsi_btc), color = "grey")+
+    geom_line(aes(y = mean_rsi_btc)) + 
+    geom_line(aes(y = mean_rsi_btc + sd_rsi_btc), color = "darkgreen") +
+    geom_line(aes(y = mean_rsi_btc - sd_rsi_btc), color = "red")
+    geom_line(aes(y = rsi_btc), color = "grey")
+```
+
+```{r}
+assets <- assets %>% 
+    mutate(score_btc = (rsi_btc - mean_rsi_btc) / sd_rsi_btc,
+           score_gold = (rsi_gold - mean_rsi_gold) / sd_rsi_gold)
+
+
+```
+
