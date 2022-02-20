@@ -1,0 +1,131 @@
+---
+title: "simulate"
+output: html_document
+date: '2022-02-20'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, TTR, xts, tsbox, quantmod, gridExtra)
+```
+
+```{r, message=FALSE}
+assets <- read_csv("assets.csv") %>% 
+    select(date, bitcoin, rsi_btc, mean_rsi_btc, sd_rsi_btc, gold, rsi_gold, mean_rsi_gold, sd_rsi_gold) %>% 
+    mutate(date = ymd(date))
+```
+
+```{r}
+convert <- function(from, to, from_amt, on_hand, curr_val) {
+    if (str_detect(str_to_lower(from), "btc|bitcoin")) {
+        #Converting from Bitcoin
+        if (str_detect(str_to_lower(to), "usd|cash")) {
+            #Bitcoin to cash
+            if(from_amt > on_hand) {    #Check we have enough money for the conversion
+                stop("'from_amount' is more than on hand amount")
+            }
+            conv = (from_amt * curr_val) * 0.98 #Calculate conversion
+            
+            res = tribble(
+                ~amt, ~on_hand,
+                conv, on_hand - from_amt
+            )
+            
+            return(res) #return the conversion and the amount of currency left over
+            
+        } else if (str_detect(str_to_lower(to), "gold")) {
+            #Bitcoin to gold
+            if(from_amt > on_hand) {    #Check we have enough money for the conversion
+                stop("'from_amount' is more than on hand amount")
+            }
+            conv = (from_amt * curr_val) * 0.97 #Calculate conversion
+            
+             res = tribble(
+                ~amt, ~on_hand,
+                conv, on_hand - from_amt
+            )
+            
+            return(res) #return the conversion and the amount of currency left over left over
+        } else {
+            stop("Conversion type 'to' is invalid")
+        }
+    } else if (str_detect(str_to_lower(from), "gold")) {
+        #Converting from gold
+        if (str_detect(str_to_lower(to), "usd|cash")) {
+            #Gold to cash
+            if(from_amt > on_hand) {    #Check we have enough money for the conversion
+                stop("'from_amount' is more than on hand amount")
+            }
+            conv = (from_amt * curr_val) * 0.99 #Calculate conversion
+            
+             res = tribble(
+                ~amt, ~on_hand,
+                conv, on_hand - from_amt
+            )
+            
+            return(res) #return the conversion and the amount of currency left over left over
+            
+        } else if (str_detect(str_to_lower(to), "btc|bitcoin")) {
+            #Gold to BTC
+            if(from_amt > on_hand) {    #Check we have enough money for the conversion
+                stop("'from_amount' is more than on hand amount")
+            }
+            conv = (from_amt * curr_val) * 0.97 #Calculate conversion
+            
+             res = tribble(
+                ~amt, ~on_hand,
+                conv, on_hand - from_amt
+            )
+            
+            return(res) #return the conversion and the amount of currency left over
+        } else {
+            stop("Conversion type 'to' is invalid")
+        }
+    } else if (str_detect(str_to_lower(from), "usd|cash")) {
+        #Converting from USD
+        if (str_detect(str_to_lower(to), "btc|bitcoin")) {
+            #USD to bitcoin
+            if(from_amt > on_hand) {    #Check we have enough money for the conversion
+                stop("'from_amount' is more than on hand amount")
+            }
+            conv = (from_amt * curr_val) * 0.98 #Calculate conversion
+            
+             res = tribble(
+                ~amt, ~on_hand,
+                conv, on_hand - from_amt
+            )
+            
+            return(res) #return the conversion and the amount of currency left over
+            
+        } else if (str_detect(str_to_lower(to), "gold")) {
+            #USD to gold
+            if(from_amt > on_hand) {    #Check we have enough money for the conversion
+                stop("'from_amount' is more than on hand amount")
+            }
+            conv = (from_amt * curr_val) * 0.99 #Calculate conversion
+            
+             res = tribble(
+                ~amt, ~on_hand,
+                conv, on_hand - from_amt
+            )
+            
+            return(res) #return the conversion and the amount of currency left over
+        } else {
+            stop("Conversion type 'to' is invalid")
+        }
+    } else {
+        stop("Conversion type 'from' is invalid")
+    }
+}
+```
+
+```{r}
+test <- convert("btc", "gold", 10, 100, 500)
+test$amt
+test$on_hand
+
+```
+
