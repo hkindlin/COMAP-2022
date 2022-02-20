@@ -36,19 +36,6 @@ convert <- function(from, to, from_amt, on_hand, curr_val) {
             
             return(res) #return the conversion and the amount of currency left over
             
-        } else if (str_detect(str_to_lower(to), "gold")) {
-            #Bitcoin to gold
-            if(from_amt > on_hand) {    #Check we have enough money for the conversion
-                stop("'from_amount' is more than on hand amount")
-            }
-            conv = (from_amt * curr_val) * 0.97 #Calculate conversion
-            
-             res = tribble(
-                ~amt, ~on_hand,
-                conv, on_hand - from_amt
-            )
-            
-            return(res) #return the conversion and the amount of currency left over left over
         } else {
             stop("Conversion type 'to' is invalid")
         }
@@ -68,19 +55,6 @@ convert <- function(from, to, from_amt, on_hand, curr_val) {
             
             return(res) #return the conversion and the amount of currency left over left over
             
-        } else if (str_detect(str_to_lower(to), "btc|bitcoin")) {
-            #Gold to BTC
-            if(from_amt > on_hand) {    #Check we have enough money for the conversion
-                stop("'from_amount' is more than on hand amount")
-            }
-            conv = (from_amt * curr_val) * 0.97 #Calculate conversion
-            
-             res = tribble(
-                ~amt, ~on_hand,
-                conv, on_hand - from_amt
-            )
-            
-            return(res) #return the conversion and the amount of currency left over
         } else {
             stop("Conversion type 'to' is invalid")
         }
@@ -91,7 +65,7 @@ convert <- function(from, to, from_amt, on_hand, curr_val) {
             if(from_amt > on_hand) {    #Check we have enough money for the conversion
                 stop("'from_amount' is more than on hand amount")
             }
-            conv = (from_amt * curr_val) * 0.98 #Calculate conversion
+            conv = (from_amt / curr_val) * 0.98 #Calculate conversion
             
              res = tribble(
                 ~amt, ~on_hand,
@@ -105,7 +79,7 @@ convert <- function(from, to, from_amt, on_hand, curr_val) {
             if(from_amt > on_hand) {    #Check we have enough money for the conversion
                 stop("'from_amount' is more than on hand amount")
             }
-            conv = (from_amt * curr_val) * 0.99 #Calculate conversion
+            conv = (from_amt / curr_val) * 0.99 #Calculate conversion
             
              res = tribble(
                 ~amt, ~on_hand,
@@ -127,5 +101,62 @@ test <- convert("btc", "gold", 10, 100, 500)
 test$amt
 test$on_hand
 
+```
+```{r}
+get_curr_val <- function(x, from) {
+    if (str_detect(str_to_lower(to), "btc|bitcoin")) {
+        return(x$bitcoin)
+    }
+    else if (str_detect(str_to_lower(to), "gold")) {
+        return(x$gold)
+    } else {stop("Invalid 'from' type")}
+}
+```
+
+
+
+```{r}
+choose_currency <- function(x, account_table) {
+    #x is just a dataframe with only 1 row, col_names are same as piped in df
+    #account_table is the new table storing currency amounts
+    
+    # Ex: assets %>% head(5) %>% rowwise() %>% choose_currency()
+        # where choose_currency() has "print(x$bitcoin)" will result in:
+        # [1] 621.65 609.67 610.92 608.82 610.38
+    
+    # 1) Put however you decide currency and amount right here
+        from = "btc" # Assign to btc or usd or gold
+        to = " gold" # ^
+        from_amt = 1 #Assign to amount determined by score/method
+        on_hand = lag(account_table[from], default = 0) #previous currency amount on hand
+        curr_val = get_curr_val(x, from) #Get current value of 'from' type
+            
+    
+    # 2) Convert, make sure we know where to put the data after conversion 
+        profit = convert(from, to, from_amt, on_hand, curr_val)
+        
+    # 3) Add profit to our account table
+        if (str_detect(str_to_lower(from), "btc|bitcoin")) {
+            account_table <- account_table %>% 
+                add_row(cash = lag(cash)+profit$amt, bitcoin = profit$on_hand)
+            
+        } else if(str_detect(str_to_lower(from), "gold")) {
+            account_table <- account_table %>% 
+                add_row(cash = lag(cash)+profit$amt, gold = profit$on_hand)
+            
+        } else if(str_detect(str_to_lower(from), "usd|cash")) {
+            
+            if(str_detect(str_to_lower(from), "btc|bitcoin")) {
+                account_table <- account_table %>% 
+                    add_row(bitcoin = lag(bitcoin)+profit$amt, usd = profit$on_hand)
+                
+            } else if(str_detect(str_to_lower(from), "gold")) {
+                account_table <- account_table %>% 
+                    add_row(gold = lag(gold)+profit$amt, usd = profit$on_hand)
+            }
+        }
+        
+        
+}
 ```
 
