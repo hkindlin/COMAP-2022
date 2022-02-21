@@ -1,0 +1,49 @@
+---
+title: "report"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=FALSE, message=FALSE}
+pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, TTR, xts, tsbox, quantmod, gridExtra, reticulate, RcppRoll)
+```
+
+```{r, echo=FALSE, message=FALSE}
+assets <- read_csv("assets.csv") %>% 
+    select(date, bitcoin, rsi_btc, mean_rsi_btc, sd_rsi_btc, gold, rsi_gold, mean_rsi_gold, sd_rsi_gold) %>% 
+    mutate(date = ymd(date))
+```
+
+##Deciding on the model
+
+As our client is asking for investment advice based on data, but we are unable to rely on data from before they started investing, we needed to create a model that doesn't rely on large amounts of past data to tune and fix. Because of this constraint, we have created our bot based on a rsi score that measures the momentum of the market based on the past 14 days. The advantage of this type of bot is it conly needs 2 weeks to start working rather than gathering data for 1.5. 
+
+When starting up our rsi model the first desision that we made was to use an exponentail moving average to base our rsi score on. This is because the exponential moving average is more sensative to the market, and as this is an account that is going to last for 5 years, we hope to go for an aggressive stratagy to make our client the most money in 5 years, rather than going for a more stable approch in the simple moving average which we might use for an account looking to grow over a few decades. 
+
+```{r, warning=FALSE}
+assets %>% ggplot(aes(x = date)) +
+    geom_line(aes(y = rsi_btc), color = "grey")+
+    geom_line(aes(y = mean_rsi_btc)) + 
+    geom_line(aes(y = mean_rsi_btc + sd_rsi_btc), color = "darkgreen") +
+    geom_line(aes(y = mean_rsi_btc - sd_rsi_btc), color = "red")
+```
+
+This graph has the rsi in grey, the mean rsi in black. The goal of our model is if the grey line is above the black line, then we advise the client to buy some of that asset, and if the grey line is below the black, then at that time we advise our client to sell. 
+
+In order to determine the ideal amount to buy and sell, we have developed a measure call "score". This measure is calculated with $score_{asset} = (rsi_{asset} - mean_{asset})/sd_{asset}$ The goal of this measure is to determine how strong we think the market is, based on how strong the market has been in the last 2 weeks. we can then use this score to determine how much of the asset our client should be buying, rather than just buying/selling a fixed amount every time the rsi crosses the mean. 
+
+**first limitation: some transaction cost stuff
+**second limitation: minimum holding amounts
+
+Our bot is split into several cases. The first is if the score for bitcoin and the score for gold are both positive meaning that both assets are in a growing market. In this case, we take the ratio of the two assets to determine how much of our portfolio is in each. This is done by $ratio = score_{bitcoin}/score_{gold}$. So for example, if $score_{bitcoin} = 1$ and $score_{gold} = 0.5$ then $ratio = 2$. When this occurs our total portfolio would contain twice as much value bitcoin as it does has in gold. 
+
+The second case is if the score for bitcoin is posative and the score for gold is negative. In this case we are selling our gold and using it to buy bitcoin. If in this case bitcoin is in a strong market, then we invest all of our assets into bitcoin, and if bitcoin is in a weak but still growing market, then we will hold onto some cash determined by **figure out how to explain this.**
+
+The third case is if the score for bitcoin is negative and the score for gold is posative. This case proceeds similarly to the last one but with the roles of bitcoin and gold reversed.
+
+The fourth case is if the score for bitcoin and gold are both negative. Then we sell our bitcoin and our gold and try to hold value in cash. 
+
+
