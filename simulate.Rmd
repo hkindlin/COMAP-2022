@@ -97,7 +97,7 @@ convert <- function(from, to, from_amt, on_hand, curr_val) {
 ```
 
 ```{r}
-test <- convert("btc", "gold", 10, 100, 500)
+test <- convert("btc", "usd", 10, 100, 500)
 test$amt
 test$on_hand
 
