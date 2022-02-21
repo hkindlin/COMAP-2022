@@ -138,21 +138,21 @@ choose_currency <- function(x, account_table) {
     # 3) Add profit to our account table
         if (str_detect(str_to_lower(from), "btc|bitcoin")) {
             account_table <- account_table %>% 
-                add_row(cash = lag(cash)+profit$amt, bitcoin = profit$on_hand)
+                add_row(cash = lag(cash)+profit$amt, bitcoin = profit$on_hand, gold = lag(gold))
             
         } else if(str_detect(str_to_lower(from), "gold")) {
             account_table <- account_table %>% 
-                add_row(cash = lag(cash)+profit$amt, gold = profit$on_hand)
+                add_row(cash = lag(cash)+profit$amt, gold = profit$on_hand, bitcoin = lag(Bitcoin))
             
         } else if(str_detect(str_to_lower(from), "usd|cash")) {
             
             if(str_detect(str_to_lower(from), "btc|bitcoin")) {
                 account_table <- account_table %>% 
-                    add_row(bitcoin = lag(bitcoin)+profit$amt, usd = profit$on_hand)
+                    add_row(bitcoin = lag(bitcoin)+profit$amt, usd = profit$on_hand, gold = lag(gold))
                 
             } else if(str_detect(str_to_lower(from), "gold")) {
                 account_table <- account_table %>% 
-                    add_row(gold = lag(gold)+profit$amt, usd = profit$on_hand)
+                    add_row(gold = lag(gold)+profit$amt, usd = profit$on_hand, bitcoin = lag(bitcoin))
             }
         }
         
