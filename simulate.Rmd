@@ -14,8 +14,8 @@ pacman::p_load(tidyverse, tsibble, fable, feasts, janitor, lubridate, tseries, T
 
 ```{r, message=FALSE}
 assets <- read_csv("assets.csv") %>% 
-    select(date, bitcoin, rsi_btc, mean_rsi_btc, sd_rsi_btc, gold, rsi_gold, mean_rsi_gold, sd_rsi_gold) %>% 
-    mutate(date = ymd(date))
+    select(date, bitcoin, rsi_btc, mean_rsi_btc, sd_rsi_btc, score_btc, gold, rsi_gold, mean_rsi_gold, sd_rsi_gold, score_gold) %>% 
+    mutate(date = mdy(date))
 ```
 
 ```{r}
@@ -102,17 +102,117 @@ test$amt
 test$on_hand
 
 ```
+
+
 ```{r}
-get_curr_val <- function(x, from) {
+get_curr_val <- function(df_row, from) {
     if (str_detect(str_to_lower(to), "btc|bitcoin")) {
-        return(x$bitcoin)
+        return(df_row$bitcoin)
     }
     else if (str_detect(str_to_lower(to), "gold")) {
-        return(x$gold)
+        return(df_row$gold)
     } else {stop("Invalid 'from' type")}
 }
 ```
 
+```{r}
+convert_no_trans <- function(from, to, from_amt, on_hand, curr_val) {
+    if (str_detect(str_to_lower(from), "btc|bitcoin")) {
+        #Converting from Bitcoin
+        if (str_detect(str_to_lower(to), "usd|cash")) {
+            #Bitcoin to cash
+            if(from_amt > on_hand) {    #Check we have enough money for the conversion
+                stop("'from_amount' is more than on hand amount")
+            }
+            conv = (from_amt * curr_val) #Calculate conversion
+            
+            res = tribble(
+                ~amt, ~on_hand,
+                conv, on_hand - from_amt
+            )
+            
+            return(res) #return the conversion and the amount of currency left over
+            
+        } else {
+            stop("Conversion type 'to' is invalid")
+        }
+    } else if (str_detect(str_to_lower(from), "gold")) {
+        #Converting from gold
+        if (str_detect(str_to_lower(to), "usd|cash")) {
+            #Gold to cash
+            if(from_amt > on_hand) {    #Check we have enough money for the conversion
+                stop("'from_amount' is more than on hand amount")
+            }
+            conv = (from_amt * curr_val) #Calculate conversion
+            
+             res = tribble(
+                ~amt, ~on_hand,
+                conv, on_hand - from_amt
+            )
+            
+            return(res) #return the conversion and the amount of currency left over left over
+            
+        } else {
+            stop("Conversion type 'to' is invalid")
+        }
+    } else if (str_detect(str_to_lower(from), "usd|cash")) {
+        #Converting from USD
+        if (str_detect(str_to_lower(to), "btc|bitcoin")) {
+            #USD to bitcoin
+            if(from_amt > on_hand) {    #Check we have enough money for the conversion
+                stop("'from_amount' is more than on hand amount")
+            }
+            conv = (from_amt / curr_val) #Calculate conversion
+            
+             res = tribble(
+                ~amt, ~on_hand,
+                conv, on_hand - from_amt
+            )
+            
+            return(res) #return the conversion and the amount of currency left over
+            
+        } else if (str_detect(str_to_lower(to), "gold")) {
+            #USD to gold
+            if(from_amt > on_hand) {    #Check we have enough money for the conversion
+                stop("'from_amount' is more than on hand amount")
+            }
+            conv = (from_amt / curr_val) #Calculate conversion
+            
+             res = tribble(
+                ~amt, ~on_hand,
+                conv, on_hand - from_amt
+            )
+            
+            return(res) #return the conversion and the amount of currency left over
+        } else {
+            stop("Conversion type 'to' is invalid")
+        }
+    } else {
+        stop("Conversion type 'from' is invalid")
+    }
+}
+```
+
+```{r}
+sum_account <- function(account_table, btc_price, gold_price) {
+    return(
+        account_table[-1, "cash"] + 
+        convert_no_trans("btc", "usd", account_table[-1, "bitcoin"], account_table[-1, "bitcoin"], btc_price) +
+        convert_no_trans("gold", "usd", account_table[-1, "gold"], account_table[-1, "gold"], gold_price)
+    )
+}
+```
+
+if (score_bit >0 & score_gold> 0 ) {
+    ratio <- score_bit/score_gold
+    total_value <- ratiobitcoin + (1/ratio)(gold)
+else if score_bit > 0 & score_gold < 0
+    total_value <- score_btc*bitcoin + currancy
+else if score_bit <0 & score_gold > 0 
+    total_value <- score_gold*gold _ currancy
+else 
+    total_value <- lag(total_value)
+}
 
 
 ```{r}
@@ -125,38 +225,166 @@ choose_currency <- function(x, account_table) {
         # [1] 621.65 609.67 610.92 608.82 610.38
     
     # 1) Put however you decide currency and amount right here
-        from = "btc" # Assign to btc or usd or gold
-        to = " gold" # ^
-        from_amt = 1 #Assign to amount determined by score/method
-        on_hand = lag(account_table[from], default = 0) #previous currency amount on hand
-        curr_val = get_curr_val(x, from) #Get current value of 'from' type
-            
-    
-    # 2) Convert, make sure we know where to put the data after conversion 
-        profit = convert(from, to, from_amt, on_hand, curr_val)
+    if(x$score_btc > 0 & x$score_gold > 0) {
+        ratio <- x$score_btc/x$score_gold
         
-    # 3) Add profit to our account table
-        if (str_detect(str_to_lower(from), "btc|bitcoin")) {
+        if(ratio > 1) {
+           keep_gold <- (1/ratio) * account_table[-1, "gold"]
+           sell_amt <- account_table[-1, "gold"] - keep_gold
+           gold_in_usd <- convert("gold", "usd", sell_amt, account_table[-1, "gold"], get_curr_val(x, "gold"))
+           
+           #turn amt of gold into btc
+           gold_in_btc <- convert("usd", "btc", gold_in_usd$amt, account_table[-1, "cash"], get_curr_val(x, "btc"))
+           
+           #Add to ledger
+           account_table <- account_table %>% 
+               add_row(cash = account_table[-1, "cash"],
+                       bitcoin = gold_in_btc$amt + account_table[-1, "bitcoin"],
+                       gold = keep_gold)
+        }
+        
+        else if(ratio < 1) {
+           keep_btc <- (1/ratio) * account_table[-1, "bitcoin"]
+           sell_amt <- account_table[-1, "bitcoin"] - keep_btc
+           btc_in_usd <- convert("btc", "usd", sell_amt, account_table[-1, "bitcoin"], get_curr_val(x, "bitcoin"))
+           
+           #turn amt of bitcoin into gold
+           btc_in_gold <- convert("usd", "gold", btc_in_usd$amt, account_table[-1, "cash"], get_curr_val(x, "gold"))
+           
+           #Add to ledger
+           account_table <- account_table %>% 
+               add_row(cash = account_table[-1, "cash"],
+                       bitcoin = keep_btc,
+                       gold = btc_in_gold$amt + account_table[-1, "gold"])
+            
+        } else {
+            # Just hold for the day
             account_table <- account_table %>% 
-                add_row(cash = lag(cash)+profit$amt, bitcoin = profit$on_hand, gold = lag(gold))
+               add_row(cash = account_table[-1, "cash"],
+                       bitcoin = account_table[-1, "bitcoin"],
+                       gold = account_table[-1, "gold"])
+        }
+
             
-        } else if(str_detect(str_to_lower(from), "gold")) {
+    } 
+    else if(x$score_btc > 0 & x$score_gold < 0) {
+        if(account_table[-1, "gold"] <= 100) {
+            # Just hold for the day
             account_table <- account_table %>% 
-                add_row(cash = lag(cash)+profit$amt, gold = profit$on_hand, bitcoin = lag(Bitcoin))
+               add_row(cash = account_table[-1, "cash"],
+                       bitcoin = account_table[-1, "bitcoin"],
+                       gold = account_table[-1, "gold"])
+        } else {
+            #Turn all gold except 100 into USD
+            gold_to_usd <- convert("gold", "usd", account_table[-1, "gold"] - 100, account_table[-1, "gold"], get_curr_val(x, "gold"))
             
-        } else if(str_detect(str_to_lower(from), "usd|cash")) {
-            
-            if(str_detect(str_to_lower(from), "btc|bitcoin")) {
-                account_table <- account_table %>% 
-                    add_row(bitcoin = lag(bitcoin)+profit$amt, usd = profit$on_hand, gold = lag(gold))
+            if(score_btc < 1) {
                 
-            } else if(str_detect(str_to_lower(from), "gold")) {
+                buy_amt <- (score_btc)*account_table[-1, "bitcoin"]
+                buy_amt_usd <- convert("btc", "usd", buy_amt, account_table[-1, "bitcoin"], get_curr_val(x, "btc"))
+                #Amount of btc we want to buy in cash
+                buy_amt_usd <- min(buy_amt_usd$amt, account_table[-1, "cash"])
+                
+                #Convert it back to btc w/o transaction cost and append to ledger
+                buy_amt <- convert_no_trans("usd", "btc", buy_amt_usd, account_table[-1, "cash"], get_curr_val(x, "btc"))
+                
                 account_table <- account_table %>% 
-                    add_row(gold = lag(gold)+profit$amt, usd = profit$on_hand, bitcoin = lag(bitcoin))
+                   add_row(cash = account_table[-1, "cash"] - buy_amt_usd,
+                           bitcoin = account_table[-1, "bitcoin"]+buy_amt$amt,
+                           gold = account_table[-1, "gold"])
+            } else if(score >= 1) {
+                #Turn all cash into bitcoin
+                btc_amt <- convert("usd", "btc", account_table[-1, "cash"], account_table[-1, "cash"], get_curr_val(x, "btc"))
+                
+                #Append to ledger
+                account_table <- account_table %>% 
+                   add_row(cash = account_table[-1, "cash"] - btc_amt$on_hand,
+                           bitcoin = account_table[-1, "bitcoin"]+btc_amt$amt,
+                           gold = account_table[-1, "gold"])
             }
         }
         
+    } 
+    else if(x$score_bit < 0 & x$score_bitcoin > 0) {
+        if(account_table[-1, "bitcoin"] <= 100) {
+            # Just hold for the day
+            account_table <- account_table %>% 
+               add_row(cash = account_table[-1, "cash"],
+                       bitcoin = account_table[-1, "bitcoin"],
+                       gold = account_table[-1, "gold"])
+        } else {
+            #Turn all gold except 100 into USD
+            btc_to_usd <- convert("btc", "usd", account_table[-1, "bitcoin"] - 100, account_table[-1, "bitcoin"], get_curr_val(x, "bitcoin"))
+            
+            if(score_gold < 1) {
+                
+                buy_amt <- (score_gold)*account_table[-1, "gold"]
+                buy_amt_usd <- convert("gold", "usd", buy_amt, account_table[-1, "gold"], get_curr_val(x, "gold"))
+                #Amount of gold we want to buy in cash
+                buy_amt_usd <- min(buy_amt_usd$amt, account_table[-1, "cash"])
+                
+                #Convert it back to gold w/o transaction cost and append to ledger
+                buy_amt <- convert_no_trans("usd", "gold", buy_amt_usd, account_table[-1, "cash"], get_curr_val(x, "gold"))
+                
+                account_table <- account_table %>% 
+                   add_row(cash = account_table[-1, "cash"] - buy_amt_usd,
+                           bitcoin = account_table[-1, "bitcoin"],
+                           gold = account_table[-1, "gold"]+buy_amt$amt)
+            } 
+            else if(score >= 1) {
+                #Turn all cash into gold
+                gold_amt <- convert("usd", "gold", account_table[-1, "cash"], account_table[-1, "cash"], get_curr_val(x, "gold"))
+                
+                #Append to ledger
+                account_table <- account_table %>% 
+                   add_row(cash = account_table[-1, "cash"] - gold_amt$on_hand,
+                           bitcoin = account_table[-1, "bitcoin"],
+                           gold = account_table[-1, "gold"]+gold_amt$amt)
+            }
+        }
         
+    } 
+    else {
+        if((account_table[-1, "bitcoin"] <= 100) | (account_table[-1, "gold"] <= 100)) {
+            # Just hold for the day
+            account_table <- account_table %>% 
+               add_row(cash = account_table[-1, "cash"],
+                       bitcoin = account_table[-1, "bitcoin"],
+                       gold = account_table[-1, "gold"])
+        }
+        else {
+            #Sell everything, put it all in USD
+            btc_usd <- convert("btc", "usd", account_table[-1, "bitcoin"]-100, account_table[-1, "bitcoin"], get_curr_val(x, "btc"))
+            gold_usd <- convert("gold", "usd", account_table[-1, "gold"]-100, account_table[-1, "gold"], get_curr_val(x, "gold"))
+            
+            #Append ledger
+            account_table <- account_table %>% 
+               add_row(cash = account_table[-1, "cash"] + btc_usd$amt + gold_usd$amt,
+                       bitcoin = btc_usd$on_hand,
+                       gold = gold_usd$on_hand)
+        }
+    }
 }
+```
+
+```{r}
+account_table <- tribble(
+    ~cash, ~bitcoin, ~gold,
+    1000, 0, 0,
+    980.92, 0.01, 0.01
+)
+
+assets %>% head(5) %>% 
+    rowwise() %>% 
+    
+```
+```{r}
+res = tribble(
+    ~x, ~y, 
+    1, 5, 
+    4, 6
+)
+
+res[-1,'y']
 ```
 
